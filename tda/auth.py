@@ -147,6 +147,9 @@ def __fetch_and_register_token_from_redirect(
 class RedirectTimeoutError(Exception):
     pass
 
+class InvalidCurrentURLError(Exception):
+    pass
+
 
 class TokenMetadata:
     '''
@@ -343,6 +346,80 @@ def client_from_login_flow(webdriver, api_key, redirect_url, token_path,
             raise RedirectTimeoutError('timed out waiting for redirect')
         time.sleep(redirect_wait_time_seconds)
         num_waits += 1
+
+    return __fetch_and_register_token_from_redirect(
+        oauth, current_url, api_key, token_path, token_write_func,
+        asyncio, enforce_enums=enforce_enums)
+
+
+def generate_auth_link(api_key, redirect_url):
+    '''
+    Generates Oauth client and link for OAuth webapp login flow.
+
+    :param api_key: Your TD Ameritrade application's API key, also known as the
+                    client ID.
+    :param redirect_url: Your TD Ameritrade application's redirect URL. Note
+                         this must *exactly* match the value you've entered in
+                         your application configuration, otherwise login will
+                         fail with a security error.
+    '''
+
+    get_logger().info('Creating new token with redirect URL \'%s\' ' +
+                       'and token path \'%s\'', redirect_url, token_path)
+
+    api_key = _normalize_api_key(api_key)
+
+    oauth = OAuth2Client(api_key, redirect_uri=redirect_url)
+    authorization_url, state = oauth.create_authorization_url(
+        'https://auth.tdameritrade.com/auth')
+
+    return authorization_url
+
+
+def session_from_link(redirect_url, current_url, api_key, token_path,
+                           asyncio=False, token_write_func=None, enforce_enums=True):
+
+    '''
+    Creates a client wrapped around the resulting token. The client will be configured to
+    refresh the token as necessary, writing each updated version to
+    ``token_path``.
+
+    :param api_key: Your TD Ameritrade application's API key, also known as the
+                    client ID.
+    :param redirect_url: Your TD Ameritrade application's redirect URL. Note
+                         this must *exactly* match the value you've entered in
+                         your application configuration, otherwise login will
+                         fail with a security error.
+    :param current_url: This is your url after redirection from TD Ameritrade.
+                        It should start with redirect_url followed by arguments.
+    :param token_path: Path to which the new token will be written. If the token
+                       file already exists, it will be overwritten with a new
+                       one. Updated tokens will be written to this path as well.
+
+    :param asyncio: If set to ``True``, this will enable async support allowing
+                    the client to be used in an async environment. Defaults to
+                    ``False``
+    :param enforce_enums: Set it to ``False`` to disable the enum checks on ALL
+                          the client methods. Only do it if you know you really
+                          need it. For most users, it is advised to use enums
+                          to avoid errors.
+    '''
+
+    oauth = OAuth2Client(api_key, redirect_uri=redirect_url)
+    # Tolerate redirects to HTTPS on the callback URL
+    if redirect_url.startswith('http://'):
+        print(('WARNING: Your redirect URL ({}) will transmit data over HTTP, ' +
+               'which is a potentially severe security vulnerability. ' +
+               'Please go to your app\'s configuration with TDAmeritrade ' +
+               'and update your redirect URL to begin with \'https\' ' +
+               'to stop seeing this message.').format(redirect_url))
+
+        redirect_urls = (redirect_url, 'https' + redirect_url[4:])
+    else:
+        redirect_urls = (redirect_url,)
+
+    if not any(current_url.startswith(r_url) for r_url in redirect_urls):
+        raise InvalidCurrentURLError("Current URL does not match redirect URL")
 
     return __fetch_and_register_token_from_redirect(
         oauth, current_url, api_key, token_path, token_write_func,
