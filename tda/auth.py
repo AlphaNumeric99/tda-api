@@ -352,9 +352,9 @@ def client_from_login_flow(webdriver, api_key, redirect_url, token_path,
         asyncio, enforce_enums=enforce_enums)
 
 
-def generate_auth_link(api_key, redirect_url):
+def generate_auth_url(api_key, redirect_url):
     '''
-    Generates Oauth client and link for OAuth webapp login flow.
+    Generates Oauth client and url for OAuth webapp login flow.
 
     :param api_key: Your TD Ameritrade application's API key, also known as the
                     client ID.
@@ -376,11 +376,11 @@ def generate_auth_link(api_key, redirect_url):
     return authorization_url
 
 
-def session_from_link(redirect_url, current_url, api_key, token_path,
+def session_from_url(redirect_url, current_url, api_key, token_path,
                            asyncio=False, token_write_func=None, enforce_enums=True):
 
     '''
-    Creates a client wrapped around the resulting token. The client will be configured to
+    Creates a client wrapped around the resulting url. The client will be configured to
     refresh the token as necessary, writing each updated version to
     ``token_path``.
 
